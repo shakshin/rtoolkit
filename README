@@ -1,0 +1,21 @@
+RToolkit is set of small helper tools for network administrator.
+
+Author: Sergei Shakshin.
+Contact me with:
+    e-mail: rigid.mgn@gmail.com
+    icq: 130787
+    jabber: rigid_mgn@jabber.ru
+
+The kit contains:
+1. GMCheck - checks your GMail inbox for unread messages. 
+    This code originally create by user Postrational from www.commandlinefu.com and modified by me to get complete bash script.
+
+2. IPNotify - monitors dynamic set of hosts and notifies you when one of them comes online.
+
+3. NetMon - More complex than IPnotify script. It monitors fixed list of routers. Logs all state chenges into file and notifies administrator with libnoify.
+
+------------------------------------------------------
+Changes log:
+
+June 08, 2010
+    Initial commit to github

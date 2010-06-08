@@ -1,0 +1,123 @@
+#!/usr/bin/perl
+
+# -- Netmon script by Sergei Shakshin
+
+use strict;
+use DateTime;
+use Net::Ping::External qw(ping);
+
+# --- Script configuration
+
+my $tries = 10; # Ping retries
+my $timeout = 5; # Ping timeout (in seconds)
+my $interval = 5; # Interval (in minutes) between checks
+
+my $logfile = "/home/rigid/log/netmon.log"; # Log file
+
+my %hosts = (
+	"1C-SERVER" 	=> "10.0.0.1",
+	"MANAGEMENT" 	=> "10.0.0.2",
+	"GALABASE"	=> "10.0.0.243",
+	"GALABASE2"	=> "10.0.0.242",
+	"GATE"		=> "10.0.0.253",
+	"WWW"		=> "10.0.0.254",
+	"CIZL"		=> "10.0.20.254",
+	"VTO"		=> "10.0.30.254",
+	"CMK"		=> "10.0.40.254",
+	"KRC-2"		=> "10.0.50.254",
+	"KRC"		=> "10.0.60.254",
+	"CRMO"		=> "10.0.70.254",
+	"CRMO-1"	=> "10.0.80.254",
+	"CRMO-2"	=> "10.0.90.254",
+	"PKO"		=> "10.0.100.254",
+	"CRMO-3"	=> "10.0.110.254",
+	"CRMO-7"	=> "10.0.120.254",
+	"LUI"		=> "10.0.130.254",
+	"CRMO-3-ZP"	=> "10.0.140.254",
+	"REMONT"	=> "10.0.150.254",
+	"GOP-GI"	=> "10.0.160.254",
+	"OMC-UCH1"	=> "10.0.2.102",
+	"OMC-UCH2"	=> "10.0.2.238",
+	"OMC-CHPU"	=> "10.0.3.164",
+	"OMC-UCH4"	=> "10.0.3.73",
+	"CRMO7-UCH"	=> "10.0.11.129",
+	"HOME"		=> "192.168.1.65"
+);
+
+# --- End of configuration. Stop edit here.
+my $dt = DateTime->now->set_time_zone( 'Asia/Yekaterinburg' );
+my $ltime = $dt->strftime("%d %b %Y, %H:%M:%S");
+open(LF, ">>".$logfile);
+print LF "[ $ltime ] ----------- new netmon session started ----------\n";
+close(LF);
+
+my %state = ();
+while (my ($name, $ip) = each(%hosts)) {
+	$state{$name} = "UP";
+}
+my %q = ();
+while (my ($name, $ip) = each(%hosts)) {
+	$q{$name} = $tries;
+}
+
+while () {
+	open(LF, ">>".$logfile);
+	my @uphosts = ();
+	my @downhosts = ();
+
+	my %chq = ();
+
+	while (my ($name, $ip) = each(%hosts)) {
+		my $cnt = 0;
+		for (my $i = 1; $i <= $tries; $i++) {
+			if (ping(hostname => $ip, timeout => $timeout)) {
+				$cnt++;
+			}
+		}
+		if ($cnt == 0) {
+			if ($state{$name} eq "UP") {
+				$state{$name} = "DOWN";
+				push(@downhosts, $name);
+			}
+		} else {
+			if ($state{$name} eq "DOWN") {
+				$state{$name} = "UP";
+				push(@uphosts, $name);
+			}
+		}
+
+		if ($q{$name} != $cnt) {
+			$chq{$name} = $cnt;
+			$q{$name} = $cnt;
+		}
+	}
+	
+
+
+	my $dt = DateTime->now->set_time_zone( 'Asia/Yekaterinburg' );
+	
+	
+	my $ltime = $dt->strftime("%d %b %Y, %H:%M:%S");
+	if (scalar(@uphosts) > 0) {
+		my $lst = join(", ", @uphosts);
+		`notify-send -u normal NetMon "Восстановилась связь с $lst"`;
+		print LF "[ $ltime ] host $lst is UP\n";
+	}
+	if (scalar(@downhosts) > 0) {
+                my $lst = join(", ", @downhosts);
+                `notify-send -u critical NetMon "Пропала связь с $lst"`;
+                print LF "[ $ltime ] host $lst is DOWN\n";
+        }
+	while (my($name, $qua) = each(%chq)) {
+		if ($qua > 0) {
+			my $perc = int($qua / $tries * 100);
+			`notify-send -u normal NetMon "Качество связи с $name: $perc %"`;
+			print LF "[ $ltime ] Link quality at $name changed to $perc % ($qua of $tries)\n";
+		}
+	}
+		
+
+	close(LF);
+	sleep($interval * 60);
+};
+

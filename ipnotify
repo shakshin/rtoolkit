@@ -1,0 +1,135 @@
+#!/usr/bin/perl
+
+use strict;
+use subs;
+use DBI;
+use Net::Ping::External qw(ping);
+
+sub dbinit {
+    my $home = $ENV{HOME};
+    my $db = DBI->connect("dbi:SQLite:dbname=".$home."/.ipnotify.db","","");
+    my $iqry = $db->do("create table if not exists hosts(hostname TEXT)");
+    $db->disconnect();
+}
+
+sub add {
+    my $home = $ENV{HOME};
+    my $db = DBI->connect("dbi:SQLite:dbname=".$home."/.ipnotify.db","","");
+
+    if ($_[0] eq "") {
+	printf "expected hostname\n";
+    } else {
+	my $qry = $db->do("insert into hosts values ('".$_[0]."')");
+        printf $qry." hosts added to monitor list\n";
+    }
+    $db->disconnect();
+}
+
+sub del {
+    my $home = $ENV{HOME};
+    my $db = DBI->connect("dbi:SQLite:dbname=".$home."/.ipnotify.db","","");
+
+    if ($_[0] eq "") {
+	printf "expected hostname\n";
+    } else {
+	my $qry = $db->do("delete from hosts where hostname ='".$_[0]."'");
+	if ($qry == 0) {
+	    printf "no such entry\n";
+	} else {
+	    printf "ok\n";
+	}
+    }
+    $db->disconnect();
+}
+
+sub list {
+    my $home = $ENV{HOME};
+    my $db = DBI->connect("dbi:SQLite:dbname=".$home."/.ipnotify.db","","");
+    my $qry = $db->prepare("select hostname from hosts order by hostname");
+
+    $qry->execute() or die("db query failed: ".$db->errstr);
+
+    my$cnt = 0;
+    while ((my $hostname) = $qry->fetchrow_array()) {
+        printf $hostname."\n";
+        $cnt++;
+    }
+    if ($cnt == 0) {
+        printf "no entries\n";
+    }
+    $qry->finish();
+    undef $qry;
+
+    $db->disconnect();
+}
+
+sub flush {
+    my $home = $ENV{HOME};
+    my $db = DBI->connect("dbi:SQLite:dbname=".$home."/.ipnotify.db","","");
+
+    my $qry = $db->do("delete from hosts");
+    if ($qry == 0) {
+        printf "no entries\n";
+    } else {
+        printf "ok\n";
+    }
+
+    $db->disconnect();
+}
+
+sub daemon {
+    my %states = ();
+    while (1 == 1) {
+	my $home = $ENV{HOME};
+	my $db = DBI->connect("dbi:SQLite:dbname=".$home."/.ipnotify.db","","");
+	my $qry = $db->prepare("select hostname from hosts");
+	if ($qry->execute()) {
+	    while ((my $host) = $qry->fetchrow_array()) {
+		my $notify = 0;
+		if (ping(hostname => $host, timeout => 1)) {
+		    unless (exists($states{$host})) {
+			$states{$host} = 1;
+			$notify = 1;
+		    } else {
+			if ($states{$host} == 0) {
+			    $states{$host} = 1;
+			    $notify = 1;
+			}
+		    }
+		} else {
+		    $states{$host} = 0;
+		}
+		if ($notify == 1) {
+		    `notify-send -u normal IPNotify "$host is online!"`;
+		}
+	    }
+	}
+	$qry->finish();
+	undef $qry;
+	$db->disconnect();
+	sleep(60);
+    }
+}
+
+
+dbinit();
+if (($ARGV[0] eq "") || (($ARGV[0] ne "add") && ($ARGV[0] ne "del") && ($ARGV[0] ne "list") && ($ARGV[0] ne "daemon") && ($ARGV[0] ne "flush"))) {
+    printf "IPNotify usage:\n";
+    printf "ipnotify { daemon | list | add <host> | del <host> | flush }\n";
+} else {
+    if ($ARGV[0] eq "list") {
+	list();
+    };
+    if ($ARGV[0] eq "daemon") {
+	daemon();
+    };
+    if ($ARGV[0] eq "add") {
+	add($ARGV[1]);
+    };
+    if ($ARGV[0] eq "del") {
+	del($ARGV[1]);
+    };
+    if ($ARGV[0] eq "flush") {
+        flush();
+    }
+}

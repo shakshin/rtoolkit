@@ -1,0 +1,21 @@
+#!/bin/bash
+echo -n "username: "
+read USERNAME
+echo -n "password: "
+read -s PASSWORD
+echo
+
+MCOUNT=`curl -u $USERNAME:$PASSWORD --silent "https://mail.google.com/mail/feed/atom" | tr -d '\n' | awk -F '<entry>' '{for (i=2; i<=NF; i++) {print 
+$i}}' | sed -n "s/<title>\(.*\)<\/title.*name>\(.*\)<\/name>.*/\2 - \1/p"| wc -l`
+LCOUNT=$MCOUNT
+
+while [ true ]; do
+	sleep 60;
+	MCOUNT=`curl -u $USERNAME:$PASSWORD --silent "https://mail.google.com/mail/feed/atom" | tr -d '\n' | awk -F '<entry>' '{for (i=2; i<=NF; i++) {print $i}}' | sed -n "s/<title>\(.*\)<\/title.*name>\(.*\)<\/name>.*/\2 - \1/p"| wc -l`
+	if [ $MCOUNT -ne $LCOUNT ]; then
+		echo You have $MCOUNT unread messages in GMail | mail -s "GMail" 79048042847@suct.uu.ru
+	fi
+	LCOUNT=$MCOUNT
+done
+
+
